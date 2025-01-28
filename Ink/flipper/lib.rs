@@ -1,47 +1,211 @@
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
+﻿#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+//use ink_lang as ink;
 #[ink::contract]
 mod flipper {
+    use ink::prelude::string::String;
+    use scale_info::prelude::format;
+    use ink::prelude::string::ToString;
+    use ink::prelude::vec::Vec;
+    use scale::{Decode, Encode};
+    //use serde::{Serialize, Deserialize};
 
-    /// Defines the storage of your contract.
-    /// Add new fields to the below struct in order
-    /// to add new static storage fields to your contract.
+    #[derive(Encode, Decode, PartialEq, Debug, Clone)]
+    #[cfg_attr(
+        feature = "std",
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+    )]
+    pub enum Genero {
+        Acao,
+        Animacao,
+        Comedia,
+        Drama,
+        Gospel,
+        Suspense,
+        Outros,
+    }
+    
+    #[derive(Encode, Decode, PartialEq, Debug, Clone)]
+    #[cfg_attr(
+        feature = "std",
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+    )]
+    pub struct Filme {
+        nome: String,
+        bilhetes_vendidos: u32,
+        ano_lancamento: u16, 
+        mes_lancamento: u8,
+        dia_lancamento: u8,
+        genero: Genero,
+    }
+
     #[ink(storage)]
     pub struct Flipper {
-        /// Stores a single `bool` value on the storage.
-        value: bool,
+        lista_filmes: Vec<Filme>,
+        lista_nomes: Vec<String>,
     }
 
     impl Flipper {
-        /// Constructor that initializes the `bool` value to the given `init_value`.
+        /// Construtor que inicializa um filme de exemplo.
         #[ink(constructor)]
-        pub fn new(init_value: bool) -> Self {
-            Self { value: init_value }
+        pub fn new_with_example() -> Self {
+            let filme_exemplo = Filme {
+                nome: String::from("Filme Exemplo"),
+                bilhetes_vendidos: 1000,
+                ano_lancamento: 2025,
+                mes_lancamento: 1,
+                dia_lancamento: 1,
+                genero: Genero::Acao,
+            };
+            Self {
+                lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
+                lista_filmes: Vec::from([filme_exemplo]),
+            }
+        }
+        #[ink(constructor)]
+        pub fn new_with_custom(
+            nome: String,
+            bilhetes_vendidos: u32,
+            ano_lancamento: u16,
+            mes_lancamento: u8,
+            dia_lancamento: u8,
+            genero: Genero) -> Self {
+            let filme_exemplo = Filme {
+                nome,
+                bilhetes_vendidos,
+                ano_lancamento,
+                mes_lancamento,
+                dia_lancamento,
+                genero,
+            };
+            Self {
+                lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
+                lista_filmes: Vec::from([filme_exemplo]),
+            }
         }
 
         /// Constructor that initializes the `bool` value to `false`.
         ///
         /// Constructors can delegate to other constructors.
         #[ink(constructor)]
-        pub fn default() -> Self {
-            Self::new(Default::default())
+        pub fn default()  -> Self {
+            Self {
+                lista_filmes: Vec::new(),
+                lista_nomes: Vec::new(),
+            }
         }
 
         /// A message that can be called on instantiated contracts.
-        /// This one flips the value of the stored `bool` from `true`
-        /// to `false` and vice versa.
         #[ink(message)]
-        pub fn flip(&mut self) {
-            self.value = !self.value;
+        pub fn add_filme(
+            &mut self,
+            nome: String,
+            bilhetes_vendidos: u32,
+            ano_lancamento: u16,
+            mes_lancamento: u8,
+            dia_lancamento: u8,
+            genero: Genero,
+        ) -> Result<(), String> {
+            let novo_filme = Filme {
+                nome,
+                bilhetes_vendidos,
+                ano_lancamento,
+                mes_lancamento,
+                dia_lancamento,
+                genero,
+            };
+
+            if let Err(e) = self.checa_data(ano_lancamento, mes_lancamento, dia_lancamento) { 
+                return Err(e);
+            }
+
+            if  self.checa_nome_unico(&novo_filme.nome){
+                return Err( "Esse nome já existe no sistema!".to_string(),);
+            }
+
+            self.lista_nomes.push(novo_filme.nome.clone());
+            self.lista_filmes.push(novo_filme);
+          
+            Ok(())
         }
 
-        /// Simply returns the current value of our `bool`.
         #[ink(message)]
-        pub fn get(&self) -> bool {
-            self.value
+        pub fn get_lista_filmes(&self) -> Vec<Filme> {
+            self.lista_filmes.clone()
+        }
+        #[ink(message)]
+        pub fn delete_filme(
+            &mut self,
+            nome: String,
+        ) -> Result<(), String> {
+
+            let ind = match self.get_index_filme(&nome) {
+                Ok(num) => num,
+                Err(e) => {
+                    return Err(e);
+                },
+            };
+          
+            self.lista_nomes.remove(ind);
+            self.lista_filmes.remove(ind);
+            Ok(())
+        }
+
+        //Validadores
+        pub fn get_index_filme(&self, nome_f: &str) -> Result<usize, String>{
+            if self.lista_nomes.len() == 0 {
+                return Err(String::from("Não existem filmes a serem deletados!"));
+            }
+
+            for (index, filme) in self.lista_nomes.iter().enumerate(){
+                if filme == nome_f {
+                    return Ok(index);
+                }
+            }
+            return Err(format!("Não existe um filme com esse nome!\nFilmes disponíveis: {:#?}", &self.lista_nomes));
+        }
+
+        pub fn checa_nome_unico(&self, nome_f: &str) -> bool{
+            if self.lista_nomes.len() == 0 {
+                return true;
+            }
+
+            for i in &self.lista_nomes{
+                if i == nome_f {
+                    return true;
+                }
+            }
+            return false
+        }
+
+        pub fn checa_data(&self, ano: u16, mes: u8, dia: u8) ->Result<(), String> {
+            if ano < 2000 || ano > 2025 {
+                return Err(String::from("Por favor, insira um ano válido (Entre 2000 e 2025)!"));
+            }
+            if mes < 1 || mes > 12 {
+                return Err(String::from("Por favor, insira um mês válido (Entre 1 e 12)!"));
+            }
+            if dia < 1 || dia > 31 {
+                 return Err(String::from("Por favor, insira um dia válido (Entre 1 e 31)!"));
+            }
+
+            match mes {
+                4 | 6 | 9 | 11 if dia > 30 => return Err(String::from("Data inválida!")),
+                2 => {
+                    if ano % 4 == 0 && (ano % 100 != 0 || ano % 400 == 0) {
+                        if dia > 29 {
+                            return Err(String::from("Data inválida!"))
+                        }
+                    } else if dia > 28{
+                       return Err(String::from("Data inválida!")) 
+                    }
+                }
+                _ => return Ok(()),
+            }
+            return Ok(())
         }
     }
-
+    /*
     /// Unit tests in Rust are normally defined within such a `#[cfg(test)]`
     /// module and test functions are marked with a `#[test]` attribute.
     /// The below code is technically just normal Rust code.
@@ -137,5 +301,5 @@ mod flipper {
 
             Ok(())
         }
-    }
+    }*/
 }
