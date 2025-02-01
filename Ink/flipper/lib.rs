@@ -69,7 +69,7 @@ mod flipper {
             ano_lancamento: u16,
             mes_lancamento: u8,
             dia_lancamento: u8,
-            genero: Genero) -> Self {
+            genero: Genero) -> Result<Self,String> {
             let filme_exemplo = Filme {
                 nome,
                 bilhetes_vendidos,
@@ -78,10 +78,16 @@ mod flipper {
                 dia_lancamento,
                 genero,
             };
-            Self {
+            let instance = Self {
                 lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
-                lista_filmes: Vec::from([filme_exemplo]),
+                lista_filmes: Vec::from([filme_exemplo.clone()]),
+            };
+
+            if let Err(e) = instance.checa_data(filme_exemplo.ano_lancamento,filme_exemplo.mes_lancamento,filme_exemplo.dia_lancamento) {
+                return Err(e);
             }
+
+            Ok(instance)
         }
 
         /// Constructor that initializes the `bool` value to `false`.
@@ -578,7 +584,7 @@ mod flipper {
                 .submit()
                 .await
                 .expect("instantiate failed");
-            let call_builder = contract.call_builder::<Flipper>();
+            let mut call_builder = contract.call_builder::<Flipper>();
 
             // Then
             let get = call_builder.get_lista_filmes();
@@ -590,24 +596,24 @@ mod flipper {
 
         /// We test that we can read and write a value from the on-chain contract.
         #[ink_e2e::test]
-        async fn example_movie_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+        async fn example_movie_works_eTwoe(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
             // Given
             let mut constructor = FlipperRef::new_with_example();
 
             // When
             let contract = client
-                .instantiate("flipper", &ink_e2e::bob(), &mut constructor)
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
                 .submit()
                 .await
                 .expect("instantiate failed");
-            let call_builder = contract.call_builder::<Flipper>();
+            let mut call_builder = contract.call_builder::<Flipper>();
 
             // Then
             let get = call_builder.get_lista_filmes();
             let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
             let filmes = get_result.return_value();
     
-            assert_eq!(filmes.len(), 1, "A lista de filmes deveria conter exatamente um filme!");
+            assert_eq!(filmes.len(), 1);
 
             let filme_exemplo = &filmes[0];
 
@@ -620,38 +626,457 @@ mod flipper {
 
             Ok(())
         }
-
-        /*
         #[ink_e2e::test]
         async fn example_movie_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
             // Given
-            let mut constructor = FlipperRef::new(false);
+            let nome_f = String::from("Novo filme");
+            let bilhetes_v = 200;
+            let ano_l = 2005;
+            let mes_l = 10;
+            let dia_l = 2;
+            let gen = Genero::Acao;
+
+            let mut constructor = FlipperRef::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone());
+
+            // When
             let contract = client
-                .instantiate("flipper", &ink_e2e::bob(), &mut constructor)
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
                 .submit()
                 .await
                 .expect("instantiate failed");
             let mut call_builder = contract.call_builder::<Flipper>();
 
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
-
-            // When
-            let flip = call_builder.flip();
-            let _flip_result = client
-                .call(&ink_e2e::bob(), &flip)
-                .submit()
-                .await
-                .expect("flip failed");
-
             // Then
-            let get = call_builder.get();
-            let get_result = client.call(&ink_e2e::bob(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), true));
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+    
+            assert_eq!(filmes.len(), 1);
+
+            let filme_exemplo = &filmes[0];
+
+            assert_eq!(filme_exemplo.nome, nome_f);
+            assert_eq!(filme_exemplo.bilhetes_vendidos, bilhetes_v);
+            assert_eq!(filme_exemplo.ano_lancamento, ano_l);
+            assert_eq!(filme_exemplo.mes_lancamento, mes_l);
+            assert_eq!(filme_exemplo.dia_lancamento, dia_l);
+            assert_eq!(filme_exemplo.genero, gen);
 
             Ok(())
         }
-        */
+       #[ink_e2e::test]
+       async fn create_valid_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given:
+            let mut constructor = FlipperRef::default();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            assert!(get_result.return_value().is_empty());
+
+            // When: 
+            let add_filme = call_builder.add_filme(
+                String::from("Filme"), 
+                2000, 
+                2005, 
+                10, 
+                10, 
+                Genero::Acao
+            );
+
+            client.call(&ink_e2e::alice(), &add_filme).submit().await?; 
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes = get_result_after_add.return_value();
+            assert_eq!(filmes.len(), 1);
+
+            Ok(())
+        }
+       #[ink_e2e::test]
+       async fn create_invalid_name_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            let nome_filme_existente = filmes[0].nome.clone(); 
+            // When: 
+            let add_filme = call_builder.add_filme(
+                nome_filme_existente.clone(), 
+                2000, 
+                2005, 
+                10, 
+                10, 
+                Genero::Acao
+            );
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Não deveria ser possível aceitar um nome de filme já existente!"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Esse nome já existe no sistema!"),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes = get_result_after_add.return_value();
+            assert_eq!(filmes.len(), 1);
+
+            Ok(())
+        }
+
+        #[ink_e2e::test]
+       async fn create_invalid_date_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            // When: 
+            let add_filme = call_builder.add_filme(
+                String::from("Outro nome de filme"), 
+                2000, 
+                2005, 
+                2, 
+                31, 
+                Genero::Acao
+            );
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Não deveria ser possível aceitar um filme com data invalida"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Data inválida!"),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes = get_result_after_add.return_value();
+            assert_eq!(filmes.len(), 1);
+
+            Ok(())
+        }
+        #[ink_e2e::test]
+       async fn update_valid_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given:
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            let nome_filme_existente = filmes[0].nome.clone(); 
+
+            // When: 
+            let add_filme = call_builder.update_filme(
+                nome_filme_existente.clone(),
+                String::from("Novo nome"),
+                200, 
+                2003, 
+                10, 
+                20, 
+                Genero::Comedia
+            );
+
+            client.call(&ink_e2e::alice(), &add_filme).submit().await?; 
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes = get_result_after_add.return_value();
+            assert_eq!(filmes.len(), 1);
+
+            let filme_atualizado = &filmes[0];
+
+            // Verificamos se os dados do filme foram realmente atualizados
+            assert_eq!(filme_atualizado.nome, "Novo nome");
+            assert_eq!(filme_atualizado.bilhetes_vendidos, 200);
+            assert_eq!(filme_atualizado.ano_lancamento, 2003);
+            assert_eq!(filme_atualizado.mes_lancamento, 10);
+            assert_eq!(filme_atualizado.dia_lancamento, 20);
+            assert_eq!(filme_atualizado.genero, Genero::Comedia);
+
+            Ok(())
+        }
+        #[ink_e2e::test]
+       async fn update_invalid_name_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            let nome_filme_existente = filmes[0].nome.clone(); 
+            // When: 
+            let add_filme = call_builder.update_filme(
+                nome_filme_existente.clone(), 
+                nome_filme_existente.clone(), 
+                2000, 
+                2005, 
+                10, 
+                10, 
+                Genero::Acao
+            );
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Não deveria ser possível aceitar um nome de filme já existente!"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Esse nome já existe no sistema!"),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes_apos_operacao = get_result_after_add.return_value();
+            let filme_atualizado = &filmes_apos_operacao[0];
+
+            assert_eq!(filme_atualizado.nome, filmes[0].nome.clone());
+            assert_eq!(filme_atualizado.bilhetes_vendidos, filmes[0].bilhetes_vendidos);
+            assert_eq!(filme_atualizado.ano_lancamento, filmes[0].ano_lancamento);
+            assert_eq!(filme_atualizado.mes_lancamento, filmes[0].mes_lancamento);
+            assert_eq!(filme_atualizado.dia_lancamento, filmes[0].dia_lancamento);
+            assert_eq!(filme_atualizado.genero, filmes[0].genero);
+            Ok(())
+        }
+        #[ink_e2e::test]
+       async fn update_invalid_date_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            let nome_filme_existente = filmes[0].nome.clone(); 
+            // When: 
+            let add_filme = call_builder.update_filme(
+                nome_filme_existente.clone(), 
+                nome_filme_existente.clone(), 
+                2000, 
+                2005, 
+                2, 
+                31, 
+                Genero::Acao
+            );
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Não deveria ser possível aceitar filme com data inválida!"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Data inválida!"),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes_apos_operacao = get_result_after_add.return_value();
+            let filme_atualizado = &filmes_apos_operacao[0];
+
+            assert_eq!(filme_atualizado.nome, filmes[0].nome.clone());
+            assert_eq!(filme_atualizado.bilhetes_vendidos, filmes[0].bilhetes_vendidos);
+            assert_eq!(filme_atualizado.ano_lancamento, filmes[0].ano_lancamento);
+            assert_eq!(filme_atualizado.mes_lancamento, filmes[0].mes_lancamento);
+            assert_eq!(filme_atualizado.dia_lancamento, filmes[0].dia_lancamento);
+            assert_eq!(filme_atualizado.genero, filmes[0].genero);
+            Ok(())
+        }
+
+        #[ink_e2e::test]
+       async fn delete_valid_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given:
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            let nome_filme_existente = filmes[0].nome.clone(); 
+
+            // When: 
+            let add_filme = call_builder.delete_filme(nome_filme_existente.clone());
+
+            client.call(&ink_e2e::alice(), &add_filme).submit().await?; 
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes = get_result_after_add.return_value();
+            assert_eq!(filmes.len(), 0);
+
+            Ok(())
+        }
+         #[ink_e2e::test]
+       async fn delete_without_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::default();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), true);
+
+            // When: 
+            let add_filme = call_builder.delete_filme(String::from("Outro nome de filme!"));
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Como esse filme não existe, não deveria ser possivel reaaliza-lo"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Não existem filmes no sistema!"),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes_apos_operacao = get_result_after_add.return_value();
+            assert_eq!(filmes_apos_operacao.is_empty(), true);
+
+            Ok(())
+        }
+         #[ink_e2e::test]
+       async fn delete_invalid_movie(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given: 
+            let mut constructor = FlipperRef::new_with_example();
+
+            let contract = client
+                .instantiate("flipper", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+
+            let mut call_builder = contract.call_builder::<Flipper>();
+
+            // Then: 
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+            assert_eq!(filmes.is_empty(), false);
+
+            // When: 
+            let add_filme = call_builder.delete_filme(String::from("Outro nome de filme!?"));
+
+            let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
+            match err{
+                Ok(_) =>panic!("Nenhum filme existe com esse nome! Não era para essa operação ocorrer"),
+                Err(e) =>{
+                    assert!(e.to_string().contains("Não existe um filme com esse nome!\nFilmes disponíveis: "),
+                    "Erro inesperado: {:?}",e);
+                },
+            };
+
+            // Then: 
+            let get_after_add = call_builder.get_lista_filmes();
+            let get_result_after_add = client.call(&ink_e2e::alice(), &get_after_add).dry_run().await?;
+    
+            let filmes_apos_operacao = get_result_after_add.return_value();
+            assert_eq!(filmes_apos_operacao.len(), filmes.len());
+
+            Ok(())
+        }
     }
 }
