@@ -150,6 +150,51 @@ mod flipper {
             self.lista_filmes.remove(ind);
             Ok(())
         }
+        #[ink(message)]
+        pub fn update_filme(
+            &mut self,
+            nome_filme_a_atualizar:String,
+            novo_nome_filme:String,
+            bilhetes_vendidos: u32,
+            ano_lancamento: u16,
+            mes_lancamento: u8,
+            dia_lancamento: u8,
+            genero: Genero,
+        ) -> Result<(), String> {
+            let ind = match self.get_index_filme(&nome_filme_a_atualizar) {
+                Ok(num) => num,
+                Err(e) => {
+                    return Err(e);
+                },
+            };
+
+            if novo_nome_filme != "" {
+                if  self.checa_nome_unico(&novo_nome_filme){
+                    return Err( "Esse nome já existe no sistema!".to_string(),);
+                }
+                else{
+                    self.lista_nomes[ind] = novo_nome_filme.clone();
+                    self.lista_filmes[ind].nome = novo_nome_filme;
+                }
+            }
+            if bilhetes_vendidos != 0 {
+                self.lista_filmes[ind].bilhetes_vendidos = bilhetes_vendidos;
+            }
+
+            if ano_lancamento != 0 || mes_lancamento != 0 || dia_lancamento != 0 {
+                if let Err(e) = self.checa_data(ano_lancamento, mes_lancamento, dia_lancamento) { 
+                    return Err(e);
+                }
+                else{
+                    self.lista_filmes[ind].ano_lancamento = ano_lancamento;
+                    self.lista_filmes[ind].mes_lancamento = mes_lancamento;
+                    self.lista_filmes[ind].dia_lancamento = dia_lancamento;
+                }
+            }
+            self.lista_filmes[ind].genero = genero;
+            Ok(())
+        }
+
 
         //Validadores
         pub fn get_index_filme(&self, nome_f: &str) -> Result<usize, String>{
@@ -167,7 +212,7 @@ mod flipper {
 
         pub fn checa_nome_unico(&self, nome_f: &str) -> bool{
             if self.lista_nomes.len() == 0 {
-                return true;
+                return false;
             }
 
             for i in &self.lista_nomes{
@@ -205,7 +250,7 @@ mod flipper {
             return Ok(())
         }
     }
-    /*
+   
     /// Unit tests in Rust are normally defined within such a `#[cfg(test)]`
     /// module and test functions are marked with a `#[test]` attribute.
     /// The below code is technically just normal Rust code.
@@ -218,17 +263,42 @@ mod flipper {
         #[ink::test]
         fn default_works() {
             let flipper = Flipper::default();
-            assert_eq!(flipper.get(), false);
+            assert_eq!(flipper.get_lista_filmes().is_empty(), true);
         }
 
         /// We test a simple use case of our contract.
         #[ink::test]
-        fn it_works() {
-            let mut flipper = Flipper::new(false);
-            assert_eq!(flipper.get(), false);
-            flipper.flip();
-            assert_eq!(flipper.get(), true);
+        fn with_example_works() {
+            let flipper = Flipper::new_with_example();
+            let filme_exemplo = &flipper.get_lista_filmes()[0];
+
+            assert_eq!(filme_exemplo.nome, "Filme Exemplo");
+            assert_eq!(filme_exemplo.bilhetes_vendidos, 1000);
+            assert_eq!(filme_exemplo.ano_lancamento, 2025);
+            assert_eq!(filme_exemplo.mes_lancamento, 1);
+            assert_eq!(filme_exemplo.dia_lancamento, 1);
+            assert_eq!(filme_exemplo.genero, Genero::Acao);
         }
+        #[ink::test]
+        fn with_custom_works() {
+            let nome_f = String::from("Novo filme");
+            let bilhetes_v = 200;
+            let ano_l = 2005;
+            let mes_l = 10;
+            let dia_l = 2;
+            let gen = Genero::Acao;
+
+            let flipper = Flipper::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone());
+            let filme_exemplo = &flipper.get_lista_filmes()[0];
+
+            assert_eq!(filme_exemplo.nome, nome_f);
+            assert_eq!(filme_exemplo.bilhetes_vendidos, bilhetes_v);
+            assert_eq!(filme_exemplo.ano_lancamento, ano_l);
+            assert_eq!(filme_exemplo.mes_lancamento, mes_l);
+            assert_eq!(filme_exemplo.dia_lancamento, dia_l);
+            assert_eq!(filme_exemplo.genero, gen);
+        }
+
     }
 
 
@@ -263,16 +333,49 @@ mod flipper {
             let call_builder = contract.call_builder::<Flipper>();
 
             // Then
-            let get = call_builder.get();
+            let get = call_builder.get_lista_filmes();
             let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
-            assert!(matches!(get_result.return_value(), false));
+            assert!(matches!(get_result.return_value().is_empty(), true));
 
             Ok(())
         }
 
         /// We test that we can read and write a value from the on-chain contract.
         #[ink_e2e::test]
-        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+        async fn example_movie_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Given
+            let mut constructor = FlipperRef::new_with_example();
+
+            // When
+            let contract = client
+                .instantiate("flipper", &ink_e2e::bob(), &mut constructor)
+                .submit()
+                .await
+                .expect("instantiate failed");
+            let call_builder = contract.call_builder::<Flipper>();
+
+            // Then
+            let get = call_builder.get_lista_filmes();
+            let get_result = client.call(&ink_e2e::alice(), &get).dry_run().await?;
+            let filmes = get_result.return_value();
+    
+            assert_eq!(filmes.len(), 1, "A lista de filmes deveria conter exatamente um filme!");
+
+            let filme_exemplo = &filmes[0];
+
+            assert_eq!(filme_exemplo.nome, "Filme Exemplo");
+            assert_eq!(filme_exemplo.bilhetes_vendidos, 1000);
+            assert_eq!(filme_exemplo.ano_lancamento, 2025);
+            assert_eq!(filme_exemplo.mes_lancamento, 1);
+            assert_eq!(filme_exemplo.dia_lancamento, 1);
+            assert_eq!(filme_exemplo.genero, Genero::Acao);
+
+            Ok(())
+        }
+
+        /*
+        #[ink_e2e::test]
+        async fn example_movie_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
             // Given
             let mut constructor = FlipperRef::new(false);
             let contract = client
@@ -301,5 +404,6 @@ mod flipper {
 
             Ok(())
         }
-    }*/
+        */
+    }
 }
