@@ -31,18 +31,27 @@ mod flipper {
         derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
     )]
     pub struct Filme {
+        id: u32,
         nome: String,
         bilhetes_vendidos: u32,
-        ano_lancamento: u16, 
+        ano_lancamento: u32, 
         mes_lancamento: u8,
         dia_lancamento: u8,
         genero: Genero,
     }
-
+    #[derive(Encode, Decode, PartialEq, Debug, Clone)]
+    #[cfg_attr(
+        feature = "std",
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+    )]
+    pub struct nomesEIds{
+        nome: String,
+        id: u32,
+    }
     #[ink(storage)]
     pub struct Flipper {
         lista_filmes: Vec<Filme>,
-        lista_nomes: Vec<String>,
+        lista_nomes: Vec<nomesEIds>,
     }
 
     impl Flipper {
@@ -50,6 +59,7 @@ mod flipper {
         #[ink(constructor)]
         pub fn new_with_example() -> Self {
             let filme_exemplo = Filme {
+                id: 1,
                 nome: String::from("Filme Exemplo"),
                 bilhetes_vendidos: 1000,
                 ano_lancamento: 2025,
@@ -57,8 +67,12 @@ mod flipper {
                 dia_lancamento: 1,
                 genero: Genero::Acao,
             };
+            let nome_e_id = nomesEIds {
+                nome: filme_exemplo.nome.clone(),
+                id: 1,
+            };
             Self {
-                lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
+                lista_nomes: Vec::from([nome_e_id]),
                 lista_filmes: Vec::from([filme_exemplo]),
             }
         }
@@ -66,11 +80,12 @@ mod flipper {
         pub fn new_with_custom(
             nome: String,
             bilhetes_vendidos: u32,
-            ano_lancamento: u16,
+            ano_lancamento: u32,
             mes_lancamento: u8,
             dia_lancamento: u8,
             genero: Genero) -> Result<Self,String> {
             let filme_exemplo = Filme {
+                id : 0,
                 nome,
                 bilhetes_vendidos,
                 ano_lancamento,
@@ -78,8 +93,12 @@ mod flipper {
                 dia_lancamento,
                 genero,
             };
+            let nome_e_id = nomesEIds {
+                nome: filme_exemplo.nome.clone(),
+                id: 1,
+            };
             let instance = Self {
-                lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
+                lista_nomes: Vec::from([nome_e_id]),
                 lista_filmes: Vec::from([filme_exemplo.clone()]),
             };
             if filme_exemplo.nome == "" {
@@ -109,12 +128,14 @@ mod flipper {
             &mut self,
             nome: String,
             bilhetes_vendidos: u32,
-            ano_lancamento: u16,
+            ano_lancamento: u32,
             mes_lancamento: u8,
             dia_lancamento: u8,
             genero: Genero,
         ) -> Result<(), String> {
+            let id = self.calculaId();
             let novo_filme = Filme {
+                id,
                 nome,
                 bilhetes_vendidos,
                 ano_lancamento,
@@ -133,7 +154,10 @@ mod flipper {
                 return Err( "Esse nome já existe no sistema!".to_string(),);
             }
 
-            self.lista_nomes.push(novo_filme.nome.clone());
+            self.lista_nomes.push(nomesEIds{
+                nome: novo_filme.nome.clone(),
+                id: id,
+            });
             self.lista_filmes.push(novo_filme);
           
             Ok(())
@@ -146,10 +170,10 @@ mod flipper {
         #[ink(message)]
         pub fn delete_filme(
             &mut self,
-            nome: String,
+            id: u32,
         ) -> Result<(), String> {
 
-            let ind = match self.get_index_filme(&nome) {
+            let ind = match self.get_index_filme(id) {
                 Ok(num) => num,
                 Err(e) => {
                     return Err(e);
@@ -163,15 +187,15 @@ mod flipper {
         #[ink(message)]
         pub fn update_filme(
             &mut self,
-            nome_filme_a_atualizar:String,
+            id_filme_a_atualizar:u32,
             novo_nome_filme:String,
             bilhetes_vendidos: u32,
-            ano_lancamento: u16,
+            ano_lancamento: u32,
             mes_lancamento: u8,
             dia_lancamento: u8,
             genero: Genero,
         ) -> Result<(), String> {
-            let ind = match self.get_index_filme(&nome_filme_a_atualizar) {
+            let ind = match self.get_index_filme(id_filme_a_atualizar) {
                 Ok(num) => num,
                 Err(e) => {
                     return Err(e);
@@ -183,7 +207,7 @@ mod flipper {
                     return Err( "Esse nome já existe no sistema!".to_string(),);
                 }
                 else{
-                    self.lista_nomes[ind] = novo_nome_filme.clone();
+                    self.lista_nomes[ind].nome = novo_nome_filme.clone();
                     self.lista_filmes[ind].nome = novo_nome_filme;
                 }
             }
@@ -207,13 +231,13 @@ mod flipper {
 
 
         //Validadores
-        pub fn get_index_filme(&self, nome_f: &str) -> Result<usize, String>{
+        pub fn get_index_filme(&self, id: u32) -> Result<usize, String>{
             if self.lista_nomes.len() == 0 {
                 return Err(String::from("Não existem filmes no sistema!"));
             }
 
             for (index, filme) in self.lista_nomes.iter().enumerate(){
-                if filme == nome_f {
+                if filme.id == id {
                     return Ok(index);
                 }
             }
@@ -226,14 +250,14 @@ mod flipper {
             }
 
             for i in &self.lista_nomes{
-                if i == nome_f {
+                if i.nome == nome_f {
                     return true;
                 }
             }
             return false
         }
 
-        pub fn checa_data(&self, ano: u16, mes: u8, dia: u8) ->Result<(), String> {
+        pub fn checa_data(&self, ano: u32, mes: u8, dia: u8) ->Result<(), String> {
             if ano < 2000 || ano > 2025 {
                 return Err(String::from("Por favor, insira um ano válido (Entre 2000 e 2025)!"));
             }
@@ -258,6 +282,20 @@ mod flipper {
                 _ => return Ok(()),
             }
             return Ok(())
+        }
+
+        pub fn calculaId(&self) -> u32{
+            if self.lista_filmes.is_empty() {
+                return 0;
+            }
+
+            if let Some(last_index) = self.lista_filmes.len().checked_sub(1) {
+                if let Some(new_id) = self.lista_nomes[last_index].id.checked_add(1) {
+                    return new_id;
+                }
+            }
+
+            0
         }
     }
    
