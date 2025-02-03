@@ -241,7 +241,7 @@ mod flipper {
                     return Ok(index);
                 }
             }
-            return Err(format!("Não existe um filme com esse nome!\nFilmes disponíveis: {:#?}", &self.lista_nomes));
+            return Err(format!("Não existe um filme com esse id!\nFilmes disponíveis: {:#?}", &self.lista_nomes));
         }
 
         pub fn checa_nome_unico(&self, nome_f: &str) -> bool{
@@ -483,7 +483,7 @@ mod flipper {
         #[ink::test]
         fn deleating_valid_movie() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.delete_filme(String::from("Filme Exemplo")){
+            let _ = match flipper.delete_filme(1){
                 Ok(_) =>Ok(()),
                 Err(e) => Err(e),
             };
@@ -491,7 +491,7 @@ mod flipper {
         #[ink::test]
         fn deleating_without_movie() {
             let mut flipper = Flipper::default();
-            let _ = match flipper.delete_filme(String::from("Filme Exemplo")){
+            let _ = match flipper.delete_filme(1){
                 Ok(_) =>Ok(()),
                 Err(e) => {
                     if e.contains("Não existem filmes no sistema!"){
@@ -505,10 +505,10 @@ mod flipper {
         #[ink::test]
         fn deleating_invalid_movie() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.delete_filme(String::from("Outro Filme Exemplo que não existe!")){
+            let _ = match flipper.delete_filme(30){
                 Ok(_) =>Ok(()),
                 Err(e) => {
-                    if e.contains("Não existe um filme com esse nome!\nFilmes disponíveis: "){
+                    if e.contains("Não existe um filme com esse id!\nFilmes disponíveis: "){
                         Ok(())
                     }else{
                         Err(e)
@@ -520,7 +520,7 @@ mod flipper {
         fn deleting_all_movies() {
             let mut flipper = Flipper::new_with_example();
     
-            let _ = flipper.delete_filme(String::from("Filme Exemplo"));
+            let _ = flipper.delete_filme(1);
     
             assert!(flipper.get_lista_filmes().is_empty());
         }
@@ -528,22 +528,22 @@ mod flipper {
         #[ink::test]
         fn updating_valid_movie() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Novo nome"), 0, 0, 0, 0, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Novo nome"), 0, 0, 0, 0, Genero::Acao){
                 //Atualizando apenas o nome
                 Ok(_) =>Ok(()),
                 Err(e) => Err(e),
             };
-            let _ = match flipper.update_filme(String::from("Novo nome"), String::from(""), 5000, 0, 0, 0, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from(""), 5000, 0, 0, 0, Genero::Acao){
                 //Atualizando apenas bilhetes vendidos
                 Ok(_) =>Ok(()),
                 Err(e) => Err(e),
             };
-            let _ = match flipper.update_filme(String::from("Novo nome"), String::from(""), 0, 2020, 12, 30, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from(""), 0, 2020, 12, 30, Genero::Acao){
                 //Atualizando apenas a data
                 Ok(_) =>Ok(()),
                 Err(e) => Err(e),
             };
-            let _ = match flipper.update_filme(String::from("Novo nome"), String::from("Novissimo nome"), 3000, 2012, 10, 20, Genero::Comedia){
+            let _ = match flipper.update_filme(1, String::from("Novissimo nome"), 3000, 2012, 10, 20, Genero::Comedia){
                 //Atualizando todos os atributos simultaneamente
                 Ok(_) =>Ok(()),
                 Err(e) => Err(e),
@@ -552,7 +552,7 @@ mod flipper {
          #[ink::test]
         fn updating_without_movie() {
             let mut flipper = Flipper::default();
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from(""), 5000, 0, 0, 0, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from(""), 5000, 0, 0, 0, Genero::Acao){
                 Ok(_) =>Ok(()),
                 Err(e) => {
                     if e.contains("Não existem filmes no sistema!"){
@@ -566,10 +566,10 @@ mod flipper {
         #[ink::test]
         fn updating_no_existing_movie() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.update_filme(String::from("Filme Exemplo não existente"), String::from(""), 5000, 0, 0, 0, Genero::Acao){
+            let _ = match flipper.update_filme(30, String::from(""), 5000, 0, 0, 0, Genero::Acao){
                 Ok(_) =>Ok(()),
                 Err(e) => {
-                    if e.contains("Não existe um filme com esse nome!\nFilmes disponíveis: "){
+                    if e.contains("Não existe um filme com esse id!\nFilmes disponíveis: "){
                         Ok(())
                     }else{
                         Err(e)
@@ -580,7 +580,7 @@ mod flipper {
         #[ink::test]
         fn updating_invalid_name() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Filme Exemplo"), 0, 0, 0, 0, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Filme Exemplo"), 0, 0, 0, 0, Genero::Acao){
                 Ok(_) =>Ok(()),
                 Err(e) => {
                     if e.contains("Esse nome já existe no sistema!"){
@@ -594,7 +594,7 @@ mod flipper {
         #[ink::test]
         fn updating_invalid_date() {
             let mut flipper = Flipper::new_with_example();
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Outro Filme Exemplo"), 2000, 1500, 10, 10, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Outro Filme Exemplo"), 2000, 1500, 10, 10, Genero::Acao){
                 Ok(_) =>Err(String::from("Não deveria ser possível aceitar um filme desse ano!")),
                 Err(e) =>{
                     if e.contains("Por favor, insira um ano válido (Entre 2000 e 2025)!"){
@@ -604,7 +604,7 @@ mod flipper {
                     }
                 },
             };
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Outro Filme Exemplo"), 2000, 2010, 18, 10, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Outro Filme Exemplo"), 2000, 2010, 18, 10, Genero::Acao){
                 Ok(_) =>Err(String::from("Não deveria ser possível aceitar um filme com mês inválido!")),
                 Err(e) =>{
                     if e.contains("Por favor, insira um mês válido (Entre 1 e 12)!"){
@@ -614,7 +614,7 @@ mod flipper {
                     }
                 },
             };
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Outro Filme Exemplo"), 2000, 2010, 10, 50, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Outro Filme Exemplo"), 2000, 2010, 10, 50, Genero::Acao){
                 Ok(_) =>Err(String::from("Não deveria ser possível aceitar um filme com dia inválido!")),
                 Err(e) =>{
                     if e.contains("Por favor, insira um dia válido (Entre 1 e 31)!"){
@@ -624,7 +624,7 @@ mod flipper {
                     }
                 },
             };
-            let _ = match flipper.update_filme(String::from("Filme Exemplo"), String::from("Outro Filme Exemplo"),2000, 2010, 2, 31, Genero::Acao){
+            let _ = match flipper.update_filme(1, String::from("Outro Filme Exemplo"),2000, 2010, 2, 31, Genero::Acao){
                 Ok(_) =>Err(String::from("Não deveria ser possível aceitar um filme com dia inválido!")),
                 Err(e) =>{
                     if e.contains("Data inválida!"){
@@ -641,7 +641,7 @@ mod flipper {
     
             let filme_anterior = flipper.get_lista_filmes()[0].clone();
     
-            let _ = flipper.update_filme(String::from("Filme Exemplo"), String::from(""), 0, 0, 0, 0, Genero::Outros);
+            let _ = flipper.update_filme(1, String::from(""), 0, 0, 0, 0, Genero::Outros);
     
             let filme_atualizado = &flipper.get_lista_filmes()[0];
     
@@ -920,7 +920,7 @@ mod flipper {
 
             // When: 
             let add_filme = call_builder.update_filme(
-                nome_filme_existente.clone(),
+                1,
                 String::from("Novo nome"),
                 200, 
                 2003, 
@@ -972,7 +972,7 @@ mod flipper {
             let nome_filme_existente = filmes[0].nome.clone(); 
             // When: 
             let add_filme = call_builder.update_filme(
-                nome_filme_existente.clone(), 
+                1, 
                 nome_filme_existente.clone(), 
                 2000, 
                 2005, 
@@ -1027,8 +1027,8 @@ mod flipper {
             let nome_filme_existente = filmes[0].nome.clone(); 
             // When: 
             let add_filme = call_builder.update_filme(
-                nome_filme_existente.clone(), 
-                nome_filme_existente.clone(), 
+                1, 
+                String::from("Outro nome"), 
                 2000, 
                 2005, 
                 2, 
@@ -1083,7 +1083,7 @@ mod flipper {
             let nome_filme_existente = filmes[0].nome.clone(); 
 
             // When: 
-            let add_filme = call_builder.delete_filme(nome_filme_existente.clone());
+            let add_filme = call_builder.delete_filme(1);
 
             client.call(&ink_e2e::alice(), &add_filme).submit().await?; 
 
@@ -1116,11 +1116,11 @@ mod flipper {
             assert_eq!(filmes.is_empty(), true);
 
             // When: 
-            let add_filme = call_builder.delete_filme(String::from("Outro nome de filme!"));
+            let add_filme = call_builder.delete_filme(10);
 
             let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
             match err{
-                Ok(_) =>panic!("Como esse filme não existe, não deveria ser possivel reaaliza-lo"),
+                Ok(_) =>panic!("Como esse filme não existe, não deveria ser possivel realiza-lo"),
                 Err(e) =>{
                     assert!(e.to_string().contains("Não existem filmes no sistema!"),
                     "Erro inesperado: {:?}",e);
@@ -1156,13 +1156,13 @@ mod flipper {
             assert_eq!(filmes.is_empty(), false);
 
             // When: 
-            let add_filme = call_builder.delete_filme(String::from("Outro nome de filme!?"));
+            let add_filme = call_builder.delete_filme(10);
 
             let err = client.call(&ink_e2e::alice(), &add_filme).submit().await;
             match err{
-                Ok(_) =>panic!("Nenhum filme existe com esse nome! Não era para essa operação ocorrer"),
+                Ok(_) =>panic!("Nenhum filme existe com esse id! Não era para essa operação ocorrer"),
                 Err(e) =>{
-                    assert!(e.to_string().contains("Não existe um filme com esse nome!\nFilmes disponíveis: "),
+                    assert!(e.to_string().contains("Não existe um filme com esse id!\nFilmes disponíveis: "),
                     "Erro inesperado: {:?}",e);
                 },
             };
