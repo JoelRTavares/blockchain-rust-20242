@@ -82,7 +82,9 @@ mod flipper {
                 lista_nomes: Vec::from([filme_exemplo.nome.clone()]),
                 lista_filmes: Vec::from([filme_exemplo.clone()]),
             };
-
+            if filme_exemplo.nome == "" {
+                return Err(String::from("Por favor, insira um nome para o filme"));
+            }
             if let Err(e) = instance.checa_data(filme_exemplo.ano_lancamento,filme_exemplo.mes_lancamento,filme_exemplo.dia_lancamento) {
                 return Err(e);
             }
@@ -120,7 +122,9 @@ mod flipper {
                 dia_lancamento,
                 genero,
             };
-
+            if novo_filme.nome == "" {
+                return Err(String::from("Por favor, insira um nome para o filme"));
+            }
             if let Err(e) = self.checa_data(ano_lancamento, mes_lancamento, dia_lancamento) { 
                 return Err(e);
             }
@@ -173,7 +177,7 @@ mod flipper {
                     return Err(e);
                 },
             };
-
+            
             if novo_nome_filme != "" {
                 if  self.checa_nome_unico(&novo_nome_filme){
                     return Err( "Esse nome já existe no sistema!".to_string(),);
@@ -276,7 +280,7 @@ mod flipper {
         #[ink::test]
         fn with_example_works() {
             let flipper = Flipper::new_with_example();
-            let filme_exemplo = &flipper.get_lista_filmes()[0];
+            let filme_exemplo = flipper.get_lista_filmes()[0].clone();
 
             assert_eq!(filme_exemplo.nome, "Filme Exemplo");
             assert_eq!(filme_exemplo.bilhetes_vendidos, 1000);
@@ -294,8 +298,10 @@ mod flipper {
             let dia_l = 2;
             let gen = Genero::Acao;
 
-            let flipper = Flipper::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone());
-            let filme_exemplo = &flipper.get_lista_filmes()[0];
+            let flipper = Flipper::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone())
+                .expect("Falha ao criar Flipper");
+            let filme_exemplo = flipper.get_lista_filmes()[0].clone();
+
 
             assert_eq!(filme_exemplo.nome, nome_f);
             assert_eq!(filme_exemplo.bilhetes_vendidos, bilhetes_v);
@@ -303,6 +309,46 @@ mod flipper {
             assert_eq!(filme_exemplo.mes_lancamento, mes_l);
             assert_eq!(filme_exemplo.dia_lancamento, dia_l);
             assert_eq!(filme_exemplo.genero, gen);
+        }
+        #[ink::test]
+        fn with_custom_no_name() {
+            let nome_f = String::from("");
+            let bilhetes_v = 200;
+            let ano_l = 2005;
+            let mes_l = 10;
+            let dia_l = 2;
+            let gen = Genero::Acao;
+
+            let _ = match Flipper::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone()){
+                Ok(_) =>Err(String::from("Não deveria ser possível aceitar filme sem nome")),
+                Err(e) =>{
+                    if e.contains("Por favor, insira um nome para o filme"){
+                        Ok(())
+                    }else{
+                        Err(e)
+                    }
+                },
+            };
+        }
+        #[ink::test]
+        fn with_custom_invalid_date() {
+            let nome_f = String::from("Filme inedito!");
+            let bilhetes_v = 200;
+            let ano_l = 2008;
+            let mes_l = 2;
+            let dia_l = 31;
+            let gen = Genero::Acao;
+
+            let _ = match Flipper::new_with_custom(nome_f.clone(), bilhetes_v, ano_l, mes_l, dia_l, gen.clone()){
+                Ok(_) =>Err(String::from("Não deveria ser possível aceitar filme com data inválida")),
+                Err(e) =>{
+                    if e.contains("Data inválida!"){
+                        Ok(())
+                    }else{
+                        Err(e)
+                    }
+                },
+            };
         }
         #[ink::test]
         fn creating_valid_movie() {
@@ -319,6 +365,20 @@ mod flipper {
                 Ok(_) =>Err(String::from("Não deveria ser possível aceitar um nome de filme já existente!")),
                 Err(e) =>{
                     if e.contains("Esse nome já existe no sistema!"){
+                        Ok(())
+                    }else{
+                        Err(e)
+                    }
+                },
+            };
+        }
+        #[ink::test]
+        fn creating_with_no_name_movie() {
+            let mut flipper = Flipper::new_with_example();
+            let _ = match flipper.add_filme(String::from(""), 2000, 2005, 10, 10, Genero::Acao){
+                Ok(_) =>Err(String::from("Não deveria ser possível aceitar filme sem nome")),
+                Err(e) =>{
+                    if e.contains("Por favor, insira um nome para o filme"){
                         Ok(())
                     }else{
                         Err(e)
